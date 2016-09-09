@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
+	//"time"
 )
 
 func randfp() (x fpelt) {
@@ -36,6 +37,7 @@ var (
 	pb        = fp2big(p)
 	corpus    = make([]fpelt, TEST_LOOPS)
 	bigCorpus = make([]*big.Int, TEST_LOOPS)
+	corpus2   = make([]fp2elt, TEST_LOOPS)
 )
 
 func TestMain(m *testing.M) {
@@ -43,10 +45,43 @@ func TestMain(m *testing.M) {
 		corpus[i] = randfp()
 		fpreduce(&corpus[i])
 		bigCorpus[i] = fp2big(corpus[i])
+
+		x := randfp()
+		y := randfp()
+		fpreduce(&x)
+		fpreduce(&y)
+		corpus2[i] = fp2elt{x, y}
 	}
 
 	m.Run()
 }
+
+// TODO: Convert to a benchmark
+/*
+func TestPerf(t *testing.T) {
+	speedtest := func(f func(i int)) time.Duration {
+		tic := time.Now()
+		for i := 0; i < TEST_LOOPS; i += 1 {
+			f(i)
+		}
+		toc := time.Now()
+		return toc.Sub(tic)
+	}
+
+	tests := map[string]func(int){
+		"add": func(i int) { fp2add(corpus2[i], corpus2[(i+1)%TEST_LOOPS]) },
+		"mul": func(i int) { fp2mul(corpus2[i], corpus2[(i+1)%TEST_LOOPS]) },
+		"sqr": func(i int) { fp2sqr(corpus2[i]) },
+		"inv": func(i int) { fp2inv(corpus2[i]) },
+	}
+
+	fmt.Printf("===== Time for %d field operations =====\n", TEST_LOOPS)
+	for name := range tests {
+		t1271 := speedtest(tests[name])
+		fmt.Printf("%5s %v\n", name, t1271)
+	}
+}
+*/
 
 func TestFPSelect(t *testing.T) {
 	x := fpelt{1, 2}
@@ -95,6 +130,12 @@ func TestFPAdd(t *testing.T) {
 }
 
 func TestFPNeg(t *testing.T) {
+	zero := fpelt{0, 0}
+	if fpneg(zero) != zero {
+		t.Fatalf("fpneg failed to handle zero %v", fpneg(zero))
+	}
+	return
+
 	for i := range corpus {
 		x := corpus[i]
 		z := fpneg(x)

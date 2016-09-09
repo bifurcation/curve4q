@@ -21,7 +21,13 @@ var (
 	fpOne  = fpelt{1, 0}
 	fpTwo  = fpelt{2, 0}
 	fpHalf = fpelt{0x0000000000000000, 0x4000000000000000}
+	fp2One = fp2elt{fpOne, fpZero}
+	fp2Two = fp2elt{fpTwo, fpZero}
 )
+
+func fpint(x uint64) fpelt {
+	return fpelt{x, 0}
+}
 
 // Adapted from "math/big" internals
 // https://golang.org/src/math/big/arith.go#L34
@@ -53,6 +59,17 @@ func wmul(x, y uint64) (z1, z0 uint64) {
 	return
 }
 
+// Constant time MSB calculation
+// Adapted from OpenSSL constant_time_is_zero
+func wzero(x uint64) uint64 {
+	return 0 - ((^x & (x - 1)) >> 63)
+}
+
+// Constant-time select
+// switch (c) {
+//   case 1: return x
+//   case 2: return y
+// }
 func fpselect(c uint64, x, y fpelt) fpelt {
 	m := c * _m
 	return fpelt{
@@ -71,9 +88,13 @@ func fpreduce(x *fpelt) {
 	c, x[0] = wadd(x[0], 0, s)
 	_, x[1] = wadd(x[1], 0, c)
 
-	m := (x[1] >> 63) * _m
+	gt := ^wzero(x[1] >> 63)
+	eq := wzero((x[0] ^ p0) | (x[1] ^ p1))
+	m := (gt | eq) & _m
+
 	x[0] ^= m
 	x[1] ^= m
+	x[1] &= p1
 	return
 }
 
@@ -111,6 +132,7 @@ func fpadd(x, y fpelt) (z fpelt) {
 func fpneg(x fpelt) (z fpelt) {
 	z[0] = x[0] ^ p0
 	z[1] = x[1] ^ p1
+	fpreduce(&z)
 	return
 }
 
@@ -226,8 +248,6 @@ func fpsqr(x fpelt) (z fpelt) {
 	z = fpadd(z, C)
 	return
 }
-
-///// NO TESTS BELOW THIS LINE /////
 
 func fp2select(c uint64, x, y fp2elt) fp2elt {
 	return fp2elt{fpselect(c, x[0], y[0]), fpselect(c, x[1], y[1])}
