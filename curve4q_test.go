@@ -3,6 +3,7 @@ package curve4q
 import (
 	"bytes"
 	"encoding/hex"
+	"math/rand"
 	"testing"
 )
 
@@ -12,6 +13,19 @@ var (
 	G1 = r1{Gx, Gy, fp2One, Gx, Gy}
 	O1 = r1{Ox, Oy, fp2One, Ox, Oy}
 )
+
+func toScalar(x uint64) scalar {
+	return scalar{x, 0, 0, 0}
+}
+
+func randScalar() scalar {
+	return scalar{
+		uint64(rand.Int63()),
+		uint64(rand.Int63()),
+		uint64(rand.Int63()),
+		uint64(rand.Int63()),
+	}
+}
 
 /**********/
 
@@ -52,12 +66,13 @@ func TestReps(t *testing.T) {
 	ta := fp2elt{fpint(5), fpint(0)}
 	tb := fp2elt{fpint(1), fpint(6)}
 	tt := fp2elt{fpint(5), fpint(30)}
-	td2 := fp2mul(fp2Two, fp2mul(d, tt))
+	t2 := fp2add(tt, tt)
+	td2 := fp2mul(d, t2)
 
 	r1pt := r1{x, y, z, ta, tb}
 	r2pt := r2{xy, yx, z2, td2}
 	r3pt := r3{xy, yx, z, tt}
-	r4pt := r4{x2, y2, z2}
+	r1pt2 := r1{x2, y2, z2, t2, fp2One}
 
 	if _R1toR2(r1pt) != r2pt {
 		t.Fatalf("failed R1toR2")
@@ -67,14 +82,14 @@ func TestReps(t *testing.T) {
 		t.Fatalf("failed R1toR3")
 	}
 
-	if _R2toR4(r2pt) != r4pt {
+	if _R2toR1(r2pt) != r1pt2 {
 		t.Fatalf("failed R2toR4")
 	}
 }
 
 func TestCore(t *testing.T) {
 	// Test doubling
-	A := _affineToR1(affine{Gx, Gy})
+	A := _AffineToR1(affine{Gx, Gy})
 	for i := 0; i < 1000; i += 1 {
 		A = dbl(A)
 	}
@@ -93,8 +108,8 @@ func TestCore(t *testing.T) {
 	}
 
 	// Test that the neutral element is neutral
-	G := _affineToR1(affine{Gx, Gy})
-	O := _affineToR1(affine{Ox, Oy})
+	G := _AffineToR1(affine{Gx, Gy})
+	O := _AffineToR1(affine{Ox, Oy})
 	GO := add(G, _R1toR2(O))
 	OG := add(O, _R1toR2(G))
 	if _R1toAffine(GO) != _R1toAffine(G) {
@@ -133,5 +148,105 @@ func TestCore(t *testing.T) {
 	if _R1toAffine(A) != A1000 {
 		t.Fatalf("failed repeated add test")
 	}
+}
 
+func testMul(mul mulfn, table []r2) bool {
+	TEST_LOOPS := 1000
+
+	curr := scalar{0x3AD457AB55456230, 0x3A8B3C2C6FD86E0C, 0x7E38F7C9CFBB9166, 0x0028FD6CBDA458F0}
+	coeff := make([]scalar, TEST_LOOPS)
+	for i := range coeff {
+		curr[1] = curr[2]
+		curr[2] += curr[0]
+		coeff[i] = curr
+	}
+
+	A := _AffineToR1(affine{Gx, Gy})
+	for i := range coeff {
+		A = mul(coeff[i], A, table)
+	}
+
+	mulP := affine{
+		fp2elt{
+			fpelt{0xDFD2B477BD494BEF, 0x257C122BBFC94A1B},
+			fpelt{0x769593547237C459, 0x469BF80CB5B11F01},
+		},
+		fp2elt{
+			fpelt{0x281C5067996F3344, 0x0901B3817C0E936C},
+			fpelt{0x4FE8C429915F1245, 0x570B948EACACE210},
+		},
+	}
+
+	return _R1toAffine(A) == mulP
+}
+
+func TestMulWindowed(t *testing.T) {
+	// Test multiplication by one and two
+	A := _AffineToR1(affine{Gx, Gy})
+	B := mulWindowed(toScalar(1), A, nil)
+	if _R1toAffine(A) != _R1toAffine(B) {
+		t.Fatalf("failed multiply-by-1 test (windowed)")
+	}
+
+	A2 := dbl(A)
+	B2 := mulWindowed(toScalar(2), A, nil)
+	if _R1toAffine(A2) != _R1toAffine(B2) {
+		t.Fatalf("failed multiply-by-2 test (windowed)")
+	}
+
+	// Long-form multiplication test
+	if !testMul(mulWindowed, nil) {
+		t.Fatalf("failed large multiply test (windowed)")
+	}
+
+	// Test multiplication test with fixed base
+	table := tableWindowed(A)
+	B = mulWindowed(toScalar(1), A, table)
+	if _R1toAffine(A) != _R1toAffine(B) {
+		t.Fatalf("failed multiply-by-1 test (windowed, fixed base)")
+	}
+
+	A2 = dbl(A)
+	B2 = mulWindowed(toScalar(2), A, table)
+	if _R1toAffine(A2) != _R1toAffine(B2) {
+		t.Fatalf("failed multiply-by-2 test (windowed, fixed base)")
+	}
+}
+
+func TestDH(t *testing.T) {
+	TEST_LOOPS := 10
+
+	dhTest := func(label string, dh func(m scalar, P affine, table []r2) affine) {
+		// Test that DH(m, P) == [392*m]P
+		P := affine{Gx, Gy}
+		failed := 0
+		for i := 0; i < TEST_LOOPS; i += 1 {
+			m := randScalar()
+			Q1 := dh(m, P, nil)
+			Q392 := mulWindowed(toScalar(392), _AffineToR1(P), nil)
+			Q2 := _R1toAffine(mulWindowed(m, Q392, nil))
+			if Q1 != Q2 {
+				failed += 1
+			}
+			P = Q1
+		}
+		if failed > 0 {
+			t.Fatalf("failed DH 392*m test (%s)", label)
+		}
+
+		// Test that DH has the symmetry property
+		G := affine{Gx, Gy}
+		failed = 0
+		for i := 0; i < TEST_LOOPS; i += 1 {
+			a := randScalar()
+			b := randScalar()
+			abG := dh(a, dh(b, G, nil), nil)
+			baG := dh(b, dh(a, G, nil), nil)
+			if abG != baG {
+				t.Fatalf("failed DH symmetry test (%s)", label)
+			}
+		}
+	}
+
+	dhTest("windowed", dhWindowed)
 }

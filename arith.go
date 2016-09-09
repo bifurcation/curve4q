@@ -42,6 +42,18 @@ func wadd(x, y, c uint64) (z1, z0 uint64) {
 }
 
 // Adapted from "math/big" internals
+// https://golang.org/src/math/big/arith.go#L44
+// z1<<_W + z0 = x-y-c, with c == 0 or 1
+func wsub(x, y, c uint64) (z1, z0 uint64) {
+	yc := y + c
+	z0 = x - yc
+	if z0 > x || yc < y {
+		z1 = 1
+	}
+	return
+}
+
+// Adapted from "math/big" internals
 // https://golang.org/src/math/big/arith.go#L54
 // z1<<_W + z0 = x*y
 func wmul(x, y uint64) (z1, z0 uint64) {
@@ -67,14 +79,17 @@ func wzero(x uint64) uint64 {
 
 // Constant-time select
 // switch (c) {
-//   case 1: return x
-//   case 2: return y
+//   case 0: return x0
+//   case 1: return x1
 // }
-func fpselect(c uint64, x, y fpelt) fpelt {
-	m := c * _m
+func wselect(c, x1, x0 uint64) uint64 {
+	return x0 ^ ((c * _m) & (x1 ^ x0))
+}
+
+func fpselect(c uint64, x1, x0 fpelt) fpelt {
 	return fpelt{
-		y[0] ^ (m & (x[0] ^ y[0])),
-		y[1] ^ (m & (x[1] ^ y[1])),
+		wselect(c, x1[0], x0[0]),
+		wselect(c, x1[1], x0[1]),
 	}
 }
 

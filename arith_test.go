@@ -26,7 +26,7 @@ func fpeq(x fpelt, y *big.Int) bool {
 }
 
 func (x fpelt) String() string {
-	return fmt.Sprintf("%016x %016x", x[1], x[0])
+	return fmt.Sprintf("%016x%016x", x[1], x[0])
 }
 
 const (

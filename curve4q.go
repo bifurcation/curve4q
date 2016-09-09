@@ -13,6 +13,9 @@ var (
 		fpelt{0xb3821488f1fc0c8d, 0x5e472f846657e0fc},
 	}
 
+	// Inverse of the curve parameter
+	dinv = fp2inv(d)
+
 	// Affine coordinates for the neutral point
 	Ox = fp2elt{fpZero, fpZero}
 	Oy = fp2elt{fpOne, fpZero}
@@ -102,7 +105,7 @@ type r2 struct{ N, D, E, F fp2elt }
 type r3 struct{ N, D, Z, T fp2elt }
 type r4 struct{ X, Y, Z fp2elt }
 
-func _affineToR1(P affine) (Q r1) {
+func _AffineToR1(P affine) (Q r1) {
 	Q = r1{P.X, P.Y, fp2One, P.X, P.Y}
 	return
 }
@@ -131,10 +134,25 @@ func _R1toR3(P r1) (Q r3) {
 
 // Note: We pick up a factor of two here on all coordintes, but
 // because of projectivity, it doesn't matter
-func _R2toR4(P r2) (Q r4) {
+func _R2toR1(P r2) (Q r1) {
 	Q.X = fp2sub(P.N, P.D)
 	Q.Y = fp2add(P.N, P.D)
 	Q.Z = P.E
+	Q.Ta = fp2mul(dinv, P.F)
+	Q.Tb = fp2One
+	return
+}
+
+func _R2neg(P r2) (Q r2) {
+	Q = r2{P.D, P.N, P.E, fp2neg(P.F)}
+	return
+}
+
+func _R2select(c uint64, P1, P0 r2) (Q r2) {
+	Q.N = fp2select(c, P1.N, P0.N)
+	Q.D = fp2select(c, P1.D, P0.D)
+	Q.E = fp2select(c, P1.E, P0.E)
+	Q.F = fp2select(c, P1.F, P0.F)
 	return
 }
 
@@ -173,4 +191,86 @@ func add_core(P1 r3, P2 r2) (P3 r1) {
 
 func add(P1 r1, P2 r2) (P3 r1) {
 	return add_core(_R1toR3(P1), P2)
+}
+
+/********** Multiplication without Endomorphisms **********/
+
+func tableWindowed(P r1) (T []r2) {
+	Q := dbl(P)
+	T = make([]r2, 8)
+	T[0] = _R1toR2(P)
+	for i := 1; i < 8; i += 1 {
+		T[i] = _R1toR2(add(Q, T[i-1]))
+	}
+	return
+}
+
+func mulWindowed(m scalar, P r1, table []r2) (Q r1) {
+	// compute [1]P, [3]P, ..., [15]P and negatives
+	// XXX: Should check whether this table is for this point
+	T := table
+	if T == nil {
+		T = tableWindowed(P)
+	}
+	nT := make([]r2, len(T))
+	for i, P := range T {
+		nT[i] = _R2neg(P)
+	}
+
+	// Pre-compute scalars
+	d := make([]int, 63)
+	reduced := smodN(m)
+	odd := reduced[0] & 1
+	reduced = sselect(odd, reduced, sadd(reduced, N))
+	for i := 0; i < 63; i += 1 {
+		d[i] = int(reduced[0]%32) - 16
+		reduced = srsh4(ssubi(reduced, d[i]))
+	}
+	d[62] = int(reduced[0])
+
+	ind := make([]int, len(d))
+	sgn := make([]uint64, len(d))
+	for i, di := range d {
+		a := abs(di)
+		ind[i] = (a - 1) / 2
+		s := di / a
+		sgn[i] = uint64((s + 1) / 2)
+	}
+
+	// Compute the product
+	Q = _R2toR1(_R2select(sgn[62], T[ind[62]], nT[ind[62]]))
+	for i := 61; i >= 0; i -= 1 {
+		Q = dbl(dbl(dbl(dbl(Q))))
+		Q = add(Q, _R2select(sgn[i], T[ind[i]], nT[ind[i]]))
+	}
+	return
+}
+
+/********** Diffie-Hellman **********/
+
+type mulfn func(scalar, r1, []r2) r1
+
+func dhCore(m scalar, P affine, mul mulfn, table []r2) affine {
+	if !pointOnCurve(P.X, P.Y) {
+		panic("DH error: Point not on curve")
+	}
+
+	P0 := _AffineToR1(P)
+	P1 := dbl(dbl(dbl(P0)))
+	P2 := dbl(dbl(dbl(dbl(P1))))
+	P3 := dbl(P2)
+	P3 = add(P3, _R1toR2(P2))
+	P3 = add(P3, _R1toR2(P1))
+	Q := _R1toAffine(mul(m, P3, table))
+
+	O := affine{Ox, Oy}
+	if Q == O {
+		panic("DH computation resulted in neutral point")
+	}
+
+	return Q
+}
+
+func dhWindowed(m scalar, P affine, table []r2) affine {
+	return dhCore(m, P, mulWindowed, table)
 }
