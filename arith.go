@@ -6,7 +6,6 @@ var (
 	// p = 2^127 - 1
 	p0 uint64 = 0xffffffffffffffff
 	p1 uint64 = 0x7fffffffffffffff
-	p         = fpelt{p0, p1}
 
 	_m  uint64 = 0xffffffffffffffff
 	_W2 uint64 = 32                 // Half word size in bits
@@ -14,6 +13,15 @@ var (
 )
 
 type fpelt [2]uint64
+type fp2elt [2]fpelt
+
+var (
+	p      = fpelt{p0, p1}
+	fpZero = fpelt{0, 0}
+	fpOne  = fpelt{1, 0}
+	fpTwo  = fpelt{2, 0}
+	fpHalf = fpelt{0x0000000000000000, 0x4000000000000000}
+)
 
 // Adapted from "math/big" internals
 // https://golang.org/src/math/big/arith.go#L34
@@ -43,6 +51,14 @@ func wmul(x, y uint64) (z1, z0 uint64) {
 	z1 = x1*y1 + w2 + w1>>_W2
 	z0 = x * y
 	return
+}
+
+func fpselect(c uint64, x, y fpelt) fpelt {
+	m := c * _m
+	return fpelt{
+		y[0] ^ (m & (x[0] ^ y[0])),
+		y[1] ^ (m & (x[1] ^ y[1])),
+	}
 }
 
 // To compute k mod p
@@ -209,4 +225,86 @@ func fpsqr(x fpelt) (z fpelt) {
 	z = fpadd(z, B)
 	z = fpadd(z, C)
 	return
+}
+
+///// NO TESTS BELOW THIS LINE /////
+
+func fp2select(c uint64, x, y fp2elt) fp2elt {
+	return fp2elt{fpselect(c, x[0], y[0]), fpselect(c, x[1], y[1])}
+}
+
+func fp2add(x, y fp2elt) (z fp2elt) {
+	return fp2elt{fpadd(x[0], y[0]), fpadd(x[1], y[1])}
+}
+
+func fp2sub(x, y fp2elt) (z fp2elt) {
+	return fp2elt{fpsub(x[0], y[0]), fpsub(x[1], y[1])}
+}
+
+func fp2neg(x fp2elt) fp2elt {
+	return fp2elt{fpneg(x[0]), fpneg(x[1])}
+}
+
+func fp2conj(x fp2elt) (z fp2elt) {
+	return fp2elt{x[0], fpneg(x[1])}
+}
+
+func fp2mul(x, y fp2elt) (z fp2elt) {
+	t00 := fpmul(x[0], y[0])
+	t01 := fpmul(x[0], y[1])
+	t10 := fpmul(x[1], y[0])
+	t11 := fpmul(x[1], y[1])
+
+	z[0] = fpsub(t00, t11)
+	z[1] = fpadd(t01, t10)
+	return
+}
+
+func fp2sqr(x fp2elt) (z fp2elt) {
+	t00 := fpsqr(x[0])
+	t11 := fpsqr(x[1])
+	t01 := fpmul(x[0], x[1])
+
+	z[0] = fpsub(t00, t11)
+	z[1] = fpadd(t01, t01)
+	return
+}
+
+func fp2inv(x fp2elt) (z fp2elt) {
+	invmag := fpinv(fpadd(fpsqr(x[0]), fpsqr(x[1])))
+	return fp2elt{fpmul(invmag, x[0]), fpmul(invmag, fpneg(x[1]))}
+}
+
+func fp2invsqrt(x fp2elt) (z fp2elt) {
+	if x[1] == fpZero {
+		t := fpinvsqrt(x[0])
+		c := fpmul(x[0], fpsqr(t))
+		if c == fpOne {
+			return fp2elt{t, fpZero}
+		} else {
+			return fp2elt{fpZero, t}
+		}
+	}
+
+	n := fpadd(fpsqr(x[0]), fpsqr(x[1]))
+	s := fpinvsqrt(n)
+	c := fpmul(n, s)
+	if fpmul(c, s) != fpOne {
+		// XXX: Should handle this more gracefully
+		panic("Number is not square")
+	}
+
+	delta := fpmul(fpadd(x[0], c), fpHalf)
+	g := fpinvsqrt(delta)
+	h := fpmul(delta, g)
+	if fpmul(h, g) != fpOne {
+		delta = fpmul(fpsub(x[0], c), fpHalf)
+		g = fpinvsqrt(delta)
+		h = fpmul(delta, g)
+	}
+
+	return fp2elt{
+		fpmul(h, s),
+		fpneg(fpmul(fpmul(fpmul(x[1], s), g), fpHalf)),
+	}
 }

@@ -48,6 +48,21 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
+func TestFPSelect(t *testing.T) {
+	x := fpelt{1, 2}
+	y := fpelt{3, 4}
+
+	z := fpselect(1, x, y)
+	if z != x {
+		t.Fatalf("fpselect with c=1 failed %v", z)
+	}
+
+	z = fpselect(0, x, y)
+	if z != y {
+		t.Fatalf("fpselect with c=0 failed %v", z)
+	}
+}
+
 func TestFPReduce(t *testing.T) {
 	for _ = range corpus {
 		x := randfp()
