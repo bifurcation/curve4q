@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
-	//"time"
+	"time"
 )
 
 func randfp() (x fpelt) {
@@ -56,8 +56,6 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-// TODO: Convert to a benchmark
-/*
 func TestPerf(t *testing.T) {
 	speedtest := func(f func(i int)) time.Duration {
 		tic := time.Now()
@@ -75,13 +73,29 @@ func TestPerf(t *testing.T) {
 		"inv": func(i int) { fp2inv(corpus2[i]) },
 	}
 
+	fmt.Println()
 	fmt.Printf("===== Time for %d field operations =====\n", TEST_LOOPS)
 	for name := range tests {
 		t1271 := speedtest(tests[name])
 		fmt.Printf("%5s %v\n", name, t1271)
 	}
+	fmt.Println()
+
+	P1 := _AffineToR1(affine{Gx, Gy})
+	clearCounters()
+	tic := time.Now()
+	dbl(P1)
+	toc := time.Now()
+	fmt.Printf("dbl: M=%d S=%d A=%d I=%d t=%v\n", fp2M, fp2S, fp2A, fp2I, toc.Sub(tic))
+
+	m := randScalar()
+	P2 := affine{Gx, Gy}
+	clearCounters()
+	tic = time.Now()
+	dhWindowed(m, P2, nil)
+	toc = time.Now()
+	fmt.Printf("dh: M=%d S=%d A=%d I=%d t=%v\n", fp2M, fp2S, fp2A, fp2I, toc.Sub(tic))
 }
-*/
 
 func TestFPSelect(t *testing.T) {
 	x := fpelt{1, 2}

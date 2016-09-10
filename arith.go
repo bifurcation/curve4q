@@ -12,6 +12,20 @@ var (
 	_M2 uint64 = 0x00000000ffffffff // Half word mask
 )
 
+var (
+	fp2M = 0 // Multiplies
+	fp2S = 0 // Squares
+	fp2A = 0 // Adds
+	fp2I = 0 // Inverses
+)
+
+func clearCounters() {
+	fp2M = 0
+	fp2S = 0
+	fp2A = 0
+	fp2I = 0
+}
+
 type fpelt [2]uint64
 type fp2elt [2]fpelt
 
@@ -269,6 +283,7 @@ func fp2select(c uint64, x, y fp2elt) fp2elt {
 }
 
 func fp2add(x, y fp2elt) (z fp2elt) {
+	fp2A += 1
 	return fp2elt{fpadd(x[0], y[0]), fpadd(x[1], y[1])}
 }
 
@@ -285,6 +300,7 @@ func fp2conj(x fp2elt) (z fp2elt) {
 }
 
 func fp2mul(x, y fp2elt) (z fp2elt) {
+	fp2M += 1
 	t00 := fpmul(x[0], y[0])
 	t01 := fpmul(x[0], y[1])
 	t10 := fpmul(x[1], y[0])
@@ -296,6 +312,7 @@ func fp2mul(x, y fp2elt) (z fp2elt) {
 }
 
 func fp2sqr(x fp2elt) (z fp2elt) {
+	fp2S += 1
 	t00 := fpsqr(x[0])
 	t11 := fpsqr(x[1])
 	t01 := fpmul(x[0], x[1])
@@ -306,7 +323,9 @@ func fp2sqr(x fp2elt) (z fp2elt) {
 }
 
 func fp2inv(x fp2elt) (z fp2elt) {
+	fp2I += 1
 	invmag := fpinv(fpadd(fpsqr(x[0]), fpsqr(x[1])))
+	fp2M -= 2
 	return fp2elt{fpmul(invmag, x[0]), fpmul(invmag, fpneg(x[1]))}
 }
 

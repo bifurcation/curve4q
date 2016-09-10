@@ -51,17 +51,17 @@ func sign(x fp2elt) byte {
 	return byte((s1 ^ (x0z & (s0 ^ s1))) & 0xFF)
 }
 
-func encode(X, Y fp2elt) []byte {
+func encode(P affine) []byte {
 	buf := make([]byte, 32)
-	binary.LittleEndian.PutUint64(buf[0:8], Y[0][0])
-	binary.LittleEndian.PutUint64(buf[8:16], Y[0][1])
-	binary.LittleEndian.PutUint64(buf[16:24], Y[1][0])
-	binary.LittleEndian.PutUint64(buf[24:32], Y[1][1])
-	buf[31] |= sign(X)
+	binary.LittleEndian.PutUint64(buf[0:8], P.Y[0][0])
+	binary.LittleEndian.PutUint64(buf[8:16], P.Y[0][1])
+	binary.LittleEndian.PutUint64(buf[16:24], P.Y[1][0])
+	binary.LittleEndian.PutUint64(buf[24:32], P.Y[1][1])
+	buf[31] |= sign(P.X)
 	return buf
 }
 
-func decode(buf []byte) (X, Y fp2elt) {
+func decode(buf []byte) (P affine) {
 	// XXX: Should handle these more gracefully
 	if len(buf) != 32 {
 		panic("Malformed point: length is not 32")
@@ -77,20 +77,20 @@ func decode(buf []byte) (X, Y fp2elt) {
 	y01 := binary.LittleEndian.Uint64(buf[8:16])
 	y10 := binary.LittleEndian.Uint64(buf[16:24])
 	y11 := binary.LittleEndian.Uint64(buf[24:32])
-	Y = fp2elt{fpelt{y00, y01}, fpelt{y10, y11}}
+	P.Y = fp2elt{fpelt{y00, y01}, fpelt{y10, y11}}
 
-	y2 := fp2sqr(Y)
+	y2 := fp2sqr(P.Y)
 	y21 := fp2sub(y2, fp2One)
 	dy21 := fp2add(fp2mul(d, y2), fp2One)
 	sqrt := fp2invsqrt(fp2mul(y21, dy21))
-	X = fp2mul(y21, sqrt)
+	P.X = fp2mul(y21, sqrt)
 
-	if s != sign(X) {
-		X = fp2neg(X)
+	if s != sign(P.X) {
+		P.X = fp2neg(P.X)
 	}
 
 	// XXX: Handle more gracefully
-	if !pointOnCurve(X, Y) {
+	if !pointOnCurve(P.X, P.Y) {
 		panic("Malformed point: not on curve")
 	}
 

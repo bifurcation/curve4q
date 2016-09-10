@@ -43,14 +43,14 @@ func TestEncodeDecode(t *testing.T) {
 	GEncHex := "87b2cb2b46a224b95a7820a19bee3f0e5c8b4c8444c3a74942020e63f84a1c6e"
 	GEnc, _ := hex.DecodeString(GEncHex)
 
-	encTest := encode(Gx, Gy)
-	if !bytes.Equal(encTest, GEnc) {
-		t.Fatalf("Encode test failed %x %x", encTest, GEnc)
+	enc := encode(affine{Gx, Gy})
+	if !bytes.Equal(enc, GEnc) {
+		t.Fatalf("Encode test failed")
 	}
 
-	decX, decY := decode(GEnc)
-	if decX != Gx || decY != Gy {
-		t.Fatalf("Decode test failed %x %x", encTest, GEnc)
+	dec := decode(GEnc)
+	if dec.X != Gx || dec.Y != Gy {
+		t.Fatalf("Decode test failed")
 	}
 }
 
@@ -214,7 +214,7 @@ func TestMulWindowed(t *testing.T) {
 }
 
 func TestDH(t *testing.T) {
-	TEST_LOOPS := 10
+	TEST_LOOPS := 100
 
 	dhTest := func(label string, dh func(m scalar, P affine, table []r2) affine) {
 		// Test that DH(m, P) == [392*m]P
