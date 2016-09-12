@@ -1,8 +1,13 @@
 package curve4q
 
 import (
+	"fmt"
 	"testing"
 )
+
+func (x scalar) String() string {
+	return fmt.Sprintf("[%016x %016x %016x %016x]", x[0], x[1], x[2], x[3])
+}
 
 func TestAbs(t *testing.T) {
 	if abs(-15) != 15 {
@@ -48,6 +53,16 @@ func TestSRsh4(t *testing.T) {
 
 	if y != srsh4(x) {
 		t.Fatalf("failed srsh4 test")
+	}
+}
+
+func TestSMulTrunc(t *testing.T) {
+	x := scalar{0xfed8c8822ad9f1a7, 0x47b3e28c55984d43, 0x052d112f54981117, 0x92990788d66bf558}
+	y := scalar{0x259686e09d1a7d4f, 0xf75682ace6a6bd66, 0xfc5bb5c5ea2be5df, 0x7}
+	z := uint64(0x11e80533457dfbc6)
+
+	if smultrunc(x, y) != z {
+		t.Fatalf("failed smultrunc test %x != %x", smultrunc(x, y), z)
 	}
 }
 

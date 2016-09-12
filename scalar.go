@@ -48,6 +48,45 @@ func srsh4(x scalar) (z scalar) {
 	return
 }
 
+func smulw(x scalar, y uint64) (c uint64, z scalar) {
+	A1, A0 := wmul(x[0], y)
+	B1, B0 := wmul(x[1], y)
+	C1, C0 := wmul(x[2], y)
+	D1, D0 := wmul(x[3], y)
+
+	z[0] = A0
+	c, z[1] = wadd(A1, B0, 0)
+	c, z[2] = wadd(B1, C0, c)
+	c, z[3] = wadd(C1, D0, c)
+	c = c + D1
+	return
+}
+
+// Note: Could possibly be made faster, as in FourQlib
+func smultrunc(x scalar, y scalar) uint64 {
+	var c, hi uint64
+	var lo scalar
+
+	hi, lo = smulw(x, y[0])
+
+	_, as := smulw(x, y[1])
+	c, lo[1] = wadd(lo[1], as[0], 0)
+	c, lo[2] = wadd(lo[2], as[1], c)
+	c, lo[3] = wadd(lo[3], as[2], c)
+	_, hi = wadd(hi, as[3], c)
+
+	_, as = smulw(x, y[2])
+	c, lo[2] = wadd(lo[2], as[0], 0)
+	c, lo[3] = wadd(lo[3], as[1], c)
+	_, hi = wadd(hi, as[2], c)
+
+	_, as = smulw(x, y[3])
+	c, lo[3] = wadd(lo[3], as[0], 0)
+	_, hi = wadd(hi, as[1], c)
+
+	return hi
+}
+
 // Note: Super-basic implementation
 // Note: Not constant-time
 func smodN(x scalar) (y scalar) {
