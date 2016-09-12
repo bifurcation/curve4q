@@ -94,7 +94,15 @@ func TestPerf(t *testing.T) {
 	tic = time.Now()
 	dhWindowed(m, P2, nil)
 	toc = time.Now()
-	fmt.Printf("dh: M=%d S=%d A=%d I=%d t=%v\n", fp2M, fp2S, fp2A, fp2I, toc.Sub(tic))
+	fmt.Printf("dh-win: M=%d S=%d A=%d I=%d t=%v\n", fp2M, fp2S, fp2A, fp2I, toc.Sub(tic))
+
+	m = randScalar()
+	P2 = affine{Gx, Gy}
+	clearCounters()
+	tic = time.Now()
+	dhEndo(m, P2, nil)
+	toc = time.Now()
+	fmt.Printf("dh-endo: M=%d S=%d A=%d I=%d t=%v\n", fp2M, fp2S, fp2A, fp2I, toc.Sub(tic))
 }
 
 func TestFPSelect(t *testing.T) {

@@ -22,10 +22,17 @@ func main() {
 
 	tic = time.Now()
 	for i := 0; i < SAMPLES; i += 1 {
-		curve4q.ScalarBaseMult(&dst, &corpus[i])
+		curve4q.ScalarBaseMultWin(&dst, &corpus[i])
 	}
 	toc = time.Now()
-	fmt.Printf("curve4q:    %v\n", toc.Sub(tic))
+	fmt.Printf("curve4q(win):    %v\n", toc.Sub(tic))
+
+	tic = time.Now()
+	for i := 0; i < SAMPLES; i += 1 {
+		curve4q.ScalarBaseMultEndo(&dst, &corpus[i])
+	}
+	toc = time.Now()
+	fmt.Printf("curve4q(endo):    %v\n", toc.Sub(tic))
 
 	tic = time.Now()
 	for i := 0; i < SAMPLES; i += 1 {
