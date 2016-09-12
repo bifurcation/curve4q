@@ -398,24 +398,19 @@ func TestDH(t *testing.T) {
 	dhTest := func(label string, dh func(m scalar, P affine, table []r2) affine) {
 		// Test that DH(m, P) == [392*m]P
 		P := affine{Gx, Gy}
-		failed := 0
 		for i := 0; i < TEST_LOOPS; i += 1 {
 			m := randScalar()
 			Q1 := dh(m, P, nil)
 			Q392 := mulWindowed(toScalar(392), _AffineToR1(P), nil)
 			Q2 := _R1toAffine(mulWindowed(m, Q392, nil))
 			if Q1 != Q2 {
-				failed += 1
+				t.Fatalf("failed DH 392*m test (%s)", label)
 			}
 			P = Q1
-		}
-		if failed > 0 {
-			t.Fatalf("failed DH 392*m test (%s)", label)
 		}
 
 		// Test that DH has the symmetry property
 		G := affine{Gx, Gy}
-		failed = 0
 		for i := 0; i < TEST_LOOPS; i += 1 {
 			a := randScalar()
 			b := randScalar()
@@ -429,4 +424,22 @@ func TestDH(t *testing.T) {
 
 	dhTest("windowed", dhWindowed)
 	dhTest("endo", dhEndo)
+
+	dhTestFixed := func(label string, dh func(m scalar, P affine, table []r2) affine, P affine, table []r2) {
+		for i := 0; i < TEST_LOOPS; i += 1 {
+			m := randScalar()
+			Q1 := dh(m, P, table)
+			Q2 := dh(m, P, nil)
+			if Q1 != Q2 {
+				t.Fatalf("failed DH 392*m test (%s)", label)
+			}
+		}
+	}
+
+	G := affine{Gx, Gy}
+	G392 := mulEndo(toScalar(392), _AffineToR1(G), nil)
+	Twin := tableWindowed(G392)
+	Tendo := tableEndo(G392)
+	dhTestFixed("windowed", dhWindowed, G, Twin)
+	dhTestFixed("endo", dhEndo, G, Tendo)
 }
