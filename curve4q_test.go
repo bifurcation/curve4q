@@ -72,6 +72,7 @@ func TestReps(t *testing.T) {
 	r1pt := r1{x, y, z, ta, tb}
 	r2pt := r2{xy, yx, z2, td2}
 	r3pt := r3{xy, yx, z, tt}
+	r4pt := r4{x, y, z}
 	r1pt2 := r1{x2, y2, z2, t2, fp2One}
 
 	if _R1toR2(r1pt) != r2pt {
@@ -80,6 +81,10 @@ func TestReps(t *testing.T) {
 
 	if _R1toR3(r1pt) != r3pt {
 		t.Fatalf("failed R1toR3")
+	}
+
+	if _R1toR4(r1pt) != r4pt {
+		t.Fatalf("failed R1toR4 %v", _R1toR4(r1pt))
 	}
 
 	if _R2toR1(r2pt) != r1pt2 {
@@ -212,6 +217,67 @@ func TestMulWindowed(t *testing.T) {
 		t.Fatalf("failed multiply-by-2 test (windowed, fixed base)")
 	}
 }
+
+func TestEndo(t *testing.T) {
+	TEST_LOOPS := 1000
+
+	P := _AffineToR1(affine{Gx, Gy})
+	for i := 0; i < TEST_LOOPS; i += 1 {
+		P = phi(P)
+	}
+	phiP := affine{
+		fp2elt{
+			fpelt{0xD5B5A3061287DB16, 0x5550AAB9E7A620EE},
+			fpelt{0xEC321E6CF33610FC, 0x3E61EBB9A1CB0210},
+		},
+		fp2elt{
+			fpelt{0x7E2851D5A8E83FB9, 0x5474BF8EC55603AE},
+			fpelt{0xA5077613491788D5, 0x5476093DBF8BF6BF},
+		},
+	}
+	if _R1toAffine(P) != phiP {
+		t.Fatalf("failed phi test")
+	}
+
+	P = _AffineToR1(affine{Gx, Gy})
+	for i := 0; i < TEST_LOOPS; i += 1 {
+		P = psi(P)
+	}
+	psiP := affine{
+		fp2elt{
+			fpelt{0xD8F3C8C24A2BC7E2, 0x75AF54EDB41A2B93},
+			fpelt{0x4DE2466701F009A9, 0x065249F9EDE0C798},
+		},
+		fp2elt{
+			fpelt{0x1C6E119ADD608104, 0x06DBB85BFFB7C21E},
+			fpelt{0xFD234D6C4CFA3EC1, 0x060A30903424BF13},
+		},
+	}
+	if _R1toAffine(P) != psiP {
+		t.Fatalf("failed psi test")
+	}
+}
+
+/*
+def test_endo():
+    TEST_LOOPS = 1000
+
+    # Test phi endomorphism
+    P := AffineToR1(Gx, Gy)
+    for i in range(TEST_LOOPS):
+        P = phi(P)
+    phiP = ((0x5550AAB9E7A620EED5B5A3061287DB16, 0x3E61EBB9A1CB0210EC321E6CF33610FC),
+            (0x5474BF8EC55603AE7E2851D5A8E83FB9, 0x5476093DBF8BF6BFA5077613491788D5))
+    test.testpt("phi", P, phiP)
+
+    # Test psi endomorphism
+    P = AffineToR1(Gx, Gy)
+    for i in range(TEST_LOOPS):
+        P = psi(P)
+    psiP = ((0x75AF54EDB41A2B93D8F3C8C24A2BC7E2, 0x065249F9EDE0C7984DE2466701F009A9),
+            (0x06DBB85BFFB7C21E1C6E119ADD608104, 0x060A30903424BF13FD234D6C4CFA3EC1))
+    test.testpt("psi", P, psiP)
+*/
 
 func TestDH(t *testing.T) {
 	TEST_LOOPS := 100

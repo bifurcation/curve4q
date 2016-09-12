@@ -132,6 +132,10 @@ func _R1toR3(P r1) (Q r3) {
 	return
 }
 
+func _R1toR4(P r1) r4 {
+	return r4{P.X, P.Y, P.Z}
+}
+
 // Note: We pick up a factor of two here on all coordintes, but
 // because of projectivity, it doesn't matter
 func _R2toR1(P r2) (Q r1) {
@@ -245,6 +249,97 @@ func mulWindowed(m scalar, P r1, table []r2) (Q r1) {
 	}
 	return
 }
+
+/********** Endomorphisms **********/
+
+var (
+	ctau     = fp2elt{fpelt{0x74dcd57cebce74c3, 0x1964de2c3afad20c}, fpelt{0x0000000000000012, 0x000000000000000c}}
+	ctaudual = fp2elt{fpelt{0x9ecaa6d9decdf034, 0x4aa740eb23058652}, fpelt{0x0000000000000011, 0x7ffffffffffffff4}}
+	cphi0    = fp2elt{fpelt{0xfffffffffffffff7, 0x0000000000000005}, fpelt{0x4f65536cef66f81a, 0x2553a0759182c329}}
+	cphi1    = fp2elt{fpelt{0x0000000000000007, 0x0000000000000005}, fpelt{0x334d90e9e28296f9, 0x62c8caa0c50c62cf}}
+	cphi2    = fp2elt{fpelt{0x0000000000000015, 0x000000000000000f}, fpelt{0x2c2cb7154f1df391, 0x78df262b6c9b5c98}}
+	cphi3    = fp2elt{fpelt{0x0000000000000003, 0x0000000000000002}, fpelt{0x92440457a7962ea4, 0x5084c6491d76342a}}
+	cphi4    = fp2elt{fpelt{0x0000000000000003, 0x0000000000000003}, fpelt{0xa1098c923aec6855, 0x12440457a7962ea4}}
+	cphi5    = fp2elt{fpelt{0x000000000000000f, 0x000000000000000a}, fpelt{0x669b21d3c5052df3, 0x459195418a18c59e}}
+	cphi6    = fp2elt{fpelt{0x0000000000000018, 0x0000000000000012}, fpelt{0xcd3643a78a0a5be7, 0x0b232a8314318b3c}}
+	cphi7    = fp2elt{fpelt{0x0000000000000023, 0x0000000000000018}, fpelt{0x66c183035f48781a, 0x3963bc1c99e2ea1a}}
+	cphi8    = fp2elt{fpelt{0x00000000000000f0, 0x00000000000000aa}, fpelt{0x44e251582b5d0ef0, 0x1f529f860316cbe5}}
+	cphi9    = fp2elt{fpelt{0x0000000000000bef, 0x0000000000000870}, fpelt{0x014d3e48976e2505, 0x0fd52e9cfe00375b}}
+	cpsi1    = fp2elt{fpelt{0xedf07f4767e346ef, 0x2af99e9a83d54a02}, fpelt{0x000000000000013a, 0x00000000000000de}}
+	cpsi2    = fp2elt{fpelt{0x0000000000000143, 0x00000000000000e4}, fpelt{0x4c7deb770e03f372, 0x21b8d07b99a81f03}}
+	cpsi3    = fp2elt{fpelt{0x0000000000000009, 0x0000000000000006}, fpelt{0x3a6e6abe75e73a61, 0x4cb26f161d7d6906}}
+	cpsi4    = fp2elt{fpelt{0xfffffffffffffff6, 0x7ffffffffffffff9}, fpelt{0xc59195418a18c59e, 0x334d90e9e28296f9}}
+)
+
+func tau(P r4) (Q r4) {
+	A := fp2sqr(P.X)
+	B := fp2sqr(P.Y)
+	C := fp2add(A, B)
+	D := fp2sub(A, B)
+	Q.X = fp2mul(fp2mul(fp2mul(ctau, P.X), P.Y), D)
+	Q.Y = fp2neg(fp2mul(fp2add(fp2mul(fp2Two, fp2sqr(P.Z)), D), C))
+	Q.Z = fp2mul(C, D)
+	return
+}
+
+func tauDual(P r4) (Q r1) {
+	A := fp2sqr(P.X)
+	B := fp2sqr(P.Y)
+	C := fp2add(A, B)
+	Q.Ta = fp2sub(B, A)
+	D := fp2sub(fp2mul(fp2Two, fp2sqr(P.Z)), Q.Ta)
+	Q.Tb = fp2mul(fp2mul(ctaudual, P.X), P.Y)
+	Q.X = fp2mul(Q.Tb, C)
+	Q.Y = fp2mul(Q.Ta, D)
+	Q.Z = fp2mul(C, D)
+	return
+}
+
+func upsilon(P r4) (Q r4) {
+	A := fp2mul(fp2mul(cphi0, P.X), P.Y)
+	B := fp2mul(P.Y, P.Z)
+	C := fp2sqr(P.Y)
+	D := fp2sqr(P.Z)
+	F := fp2sqr(D)
+	G := fp2sqr(B)
+	H := fp2sqr(C)
+	I := fp2mul(cphi1, B)
+	J := fp2add(C, fp2mul(cphi2, D))
+	K := fp2add(fp2add(fp2mul(cphi8, G), H), fp2mul(cphi9, F))
+	Q.X = fp2mul(fp2add(I, J), fp2sub(I, J))
+	Q.X = fp2conj(fp2mul(fp2mul(A, K), Q.X))
+	L := fp2add(C, fp2mul(cphi4, D))
+	M := fp2mul(cphi3, B)
+	N := fp2mul(fp2add(L, M), fp2sub(L, M))
+	Q.Y = fp2add(fp2add(H, fp2mul(cphi6, G)), fp2mul(cphi7, F))
+	Q.Y = fp2conj(fp2mul(fp2mul(fp2mul(cphi5, D), N), Q.Y))
+	Q.Z = fp2conj(fp2mul(fp2mul(B, K), N))
+	return
+}
+
+func chi(P r4) (Q r4) {
+	A := fp2conj(P.X)
+	B := fp2conj(P.Y)
+	C := fp2sqr(fp2conj(P.Z))
+	D := fp2sqr(A)
+	//F := fp2sqr(B) /* Compiler says this is defined and not used */
+	G := fp2mul(B, fp2add(D, fp2mul(cpsi2, C)))
+	H := fp2neg(fp2add(D, fp2mul(cpsi4, C)))
+	Q.X = fp2mul(fp2mul(fp2mul(cpsi1, A), C), H)
+	Q.Y = fp2mul(G, fp2add(D, fp2mul(cpsi3, C)))
+	Q.Z = fp2mul(G, H)
+	return
+}
+
+func phi(P r1) r1 {
+	return tauDual(upsilon(tau(_R1toR4(P))))
+}
+
+func psi(P r1) r1 {
+	return tauDual(chi(tau(_R1toR4(P))))
+}
+
+// XXX: Is there something to be saved by optimizing out the tau*tau_dual in phi*psi
 
 /********** Diffie-Hellman **********/
 
