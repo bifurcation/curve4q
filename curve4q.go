@@ -2,6 +2,7 @@ package curve4q
 
 import (
 	"encoding/binary"
+	"fmt"
 )
 
 /********** Definitions **********/
@@ -339,7 +340,109 @@ func psi(P r1) r1 {
 	return tauDual(chi(tau(_R1toR4(P))))
 }
 
-// XXX: Is there something to be saved by optimizing out the tau*tau_dual in phi*psi
+/********** Recoding **********/
+
+var (
+	b1 = scalar{0x0906ff27e0a0a196, 0x1363e862c22a2da0, 0x07426031ecc8030f, 0x084f739986b9e651}
+	b2 = scalar{0x1d495bea84fcc2d4, 0x0000000000000001, 0x0000000000000001, 0x25dbc5bc8dd167d0}
+	b3 = scalar{0x17abad1d231f0302, 0x02c4211ae388da51, 0x2e4d21c98927c49f, 0x0a9e6f44c02ecd97}
+	b4 = scalar{0x136e340a9108c83f, 0x3122df2dc3e0ff32, 0x068a49f02aa8a9b5, 0x18d5087896de0aea}
+	c  = scalar{0x72482c5251a4559c, 0x59f95b0add276f6c, 0x7dd2d17c4625fa78, 0x6bc57def56ce8877}
+
+	L1 = scalar{0x259686e09d1a7d4f, 0xf75682ace6a6bd66, 0xfc5bb5c5ea2be5df, 0x7}
+	L2 = scalar{0xd1ba1d84dd627afb, 0x2bd235580f468d8d, 0x8fd4b04caa6c0f8a, 0x3}
+	L3 = scalar{0x9b291a33678c203c, 0xc42bd6c965dca902, 0xd038bf8d0bffbaf6, 0x0}
+	L4 = scalar{0x12e5666b77e7fdc0, 0x81cbdc3714983d82, 0x1b073877a22d8410, 0x3}
+)
+
+func decompose(m scalar) (a scalar) {
+	t1 := smultrunc(m, L1)
+	t2 := smultrunc(m, L2)
+	t3 := smultrunc(m, L3)
+	t4 := smultrunc(m, L4)
+
+	temp := m[0] - t1*b1[0] - t2*b2[0] - t3*b3[0] - t4*b4[0] + c[0]
+	mask := ^(uint64(0) - (temp & 1))
+
+	a[0] = temp + (mask & b4[0])
+	a[1] = t1*b1[1] + t2*b2[1] - t3*b3[1] - t4*b4[1] + c[1] + (mask & b4[1])
+	a[2] = t3*b3[2] - t1*b1[2] - t2*b2[2] + t4*b4[2] + c[2] - (mask & b4[2])
+	a[3] = t1*b1[3] - t2*b2[3] - t3*b3[3] + t4*b4[3] + c[3] - (mask & b4[3])
+	return
+}
+
+func recode(v scalar) (m []uint64, d []uint64) {
+	bit := func(x uint64, n uint) uint64 {
+		return (x >> n) & 1
+	}
+
+	d = make([]uint64, 65)
+	m = make([]uint64, 65)
+	for i := uint(0); i < 64; i += 1 {
+		b1 := bit(v[0], i+1)
+		d[i] = 0
+		m[i] = b1
+
+		for _, j := range []uint{1, 2, 3} {
+			bj := bit(v[j], 0)
+			d[i] += bj << uint(j-1)
+			c := (b1 | bj) ^ b1
+			v[j] = (v[j] >> 1) + c
+		}
+	}
+
+	fmt.Println()
+
+	d[64] = v[1] + 2*v[2] + 4*v[3]
+	m[64] = 1
+	return
+}
+
+/********** Optimized multiplication **********/
+
+func tableEndo(P r1) (T []r2) {
+	Q1 := phi(P)
+	R1 := psi(P)
+	S1 := psi(Q1)
+
+	Q := _R1toR3(Q1)
+	R := _R1toR3(R1)
+	S := _R1toR3(S1)
+
+	T = make([]r2, 8)
+	T[0] = _R1toR2(P)                 // P
+	T[1] = _R1toR2(add_core(Q, T[0])) // P + Q
+	T[2] = _R1toR2(add_core(R, T[0])) // P + R
+	T[3] = _R1toR2(add_core(R, T[1])) // P + Q + R
+	T[4] = _R1toR2(add_core(S, T[0])) // P + S
+	T[5] = _R1toR2(add_core(S, T[1])) // P + Q + S
+	T[6] = _R1toR2(add_core(S, T[2])) // P + R + S
+	T[7] = _R1toR2(add_core(S, T[3])) // P + Q + R + S
+	return
+}
+
+func mulEndo(m scalar, P r1, table []r2) (Q r1) {
+	T := table
+	if T == nil {
+		T = tableEndo(P)
+	}
+	nT := make([]r2, len(T))
+	for i, P := range T {
+		nT[i] = _R2neg(P)
+	}
+
+	// Pre-compute scalars
+	scalars := decompose(m)
+	s, d := recode(scalars)
+
+	// Compute the product
+	Q = _R2toR1(_R2select(s[64], T[d[64]], nT[d[64]]))
+	for i := 61; i >= 0; i -= 1 {
+		Q = dbl(Q)
+		Q = add(Q, _R2select(s[i], T[d[i]], nT[d[i]]))
+	}
+	return
+}
 
 /********** Diffie-Hellman **********/
 
