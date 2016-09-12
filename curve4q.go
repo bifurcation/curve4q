@@ -2,7 +2,6 @@ package curve4q
 
 import (
 	"encoding/binary"
-	"fmt"
 )
 
 /********** Definitions **********/
@@ -117,6 +116,12 @@ func _R1toAffine(P r1) (Q affine) {
 	return
 }
 
+func _R4toAffine(P r4) (Q affine) {
+	Zi := fp2inv(P.Z)
+	Q = affine{fp2mul(P.X, Zi), fp2mul(P.Y, Zi)}
+	return
+}
+
 func _R1toR2(P r1) (Q r2) {
 	Q.N = fp2add(P.X, P.Y)
 	Q.D = fp2sub(P.Y, P.X)
@@ -135,6 +140,13 @@ func _R1toR3(P r1) (Q r3) {
 
 func _R1toR4(P r1) r4 {
 	return r4{P.X, P.Y, P.Z}
+}
+
+func _R2toR4(P r2) (Q r4) {
+	Q.X = fp2sub(P.N, P.D)
+	Q.Y = fp2add(P.N, P.D)
+	Q.Z = P.E
+	return
 }
 
 // Note: We pick up a factor of two here on all coordintes, but
@@ -391,8 +403,6 @@ func recode(v scalar) (m []uint64, d []uint64) {
 		}
 	}
 
-	fmt.Println()
-
 	d[64] = v[1] + 2*v[2] + 4*v[3]
 	m[64] = 1
 	return
@@ -437,7 +447,7 @@ func mulEndo(m scalar, P r1, table []r2) (Q r1) {
 
 	// Compute the product
 	Q = _R2toR1(_R2select(s[64], T[d[64]], nT[d[64]]))
-	for i := 61; i >= 0; i -= 1 {
+	for i := 63; i >= 0; i -= 1 {
 		Q = dbl(Q)
 		Q = add(Q, _R2select(s[i], T[d[i]], nT[d[i]]))
 	}
