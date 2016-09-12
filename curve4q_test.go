@@ -357,9 +357,6 @@ func TestRecode(t *testing.T) {
 			t.Fatalf("failed recode test (digits) %v %v", d, test.d)
 		}
 	}
-
-	// Test recoding
-	// TODO
 }
 
 func TestMulEndo(t *testing.T) {
@@ -431,4 +428,5 @@ func TestDH(t *testing.T) {
 	}
 
 	dhTest("windowed", dhWindowed)
+	dhTest("endo", dhEndo)
 }

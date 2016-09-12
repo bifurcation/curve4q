@@ -482,3 +482,7 @@ func dhCore(m scalar, P affine, mul mulfn, table []r2) affine {
 func dhWindowed(m scalar, P affine, table []r2) affine {
 	return dhCore(m, P, mulWindowed, table)
 }
+
+func dhEndo(m scalar, P affine, table []r2) affine {
+	return dhCore(m, P, mulEndo, table)
+}
