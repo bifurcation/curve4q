@@ -171,24 +171,29 @@ func fpsub(x, y fpelt) fpelt {
 
 func fpmul(x, y fpelt) (z fpelt) {
 	// x * y = (D << 128) + (C << 64) + (B << 64) + A
+	var c uint64
+
 	A1, A0 := wmul(x[0], y[0])
 	B1, B0 := wmul(x[0], y[1])
 	C1, C0 := wmul(x[1], y[0])
 	D1, D0 := wmul(x[1], y[1])
 
+	c, A1 = wadd(A1, B0, 0)
+	B1 += c
+	c, A1 = wadd(A1, C0, 0)
+	C1 += c
+	c, D0 = wadd(C1, D0, 0)
+	D1 += c
+	c, D0 = wadd(B1, D0, 0)
+	D1 += c
+
 	A := fpelt{A0, A1}
-	B := fpelt{B0, B1}
-	C := fpelt{C0, C1}
 	D := fpelt{D0, D1}
 
 	fpreduce(&A)
-	fpreduce64(&B)
-	fpreduce64(&C)
 	fpreduce128(&D)
 
 	z = A
-	z = fpadd(z, B)
-	z = fpadd(z, C)
 	z = fpadd(z, D)
 	return
 }
@@ -302,23 +307,26 @@ func fp2conj(x fp2elt) (z fp2elt) {
 func fp2mul(x, y fp2elt) (z fp2elt) {
 	fp2M += 1
 	t00 := fpmul(x[0], y[0])
-	t01 := fpmul(x[0], y[1])
-	t10 := fpmul(x[1], y[0])
 	t11 := fpmul(x[1], y[1])
 
+	xsum := fpadd(x[0], x[1])
+	ysum := fpadd(y[0], y[1])
+	tcross := fpmul(xsum, ysum)
+	tres := fpsub(tcross, t00)
+
 	z[0] = fpsub(t00, t11)
-	z[1] = fpadd(t01, t10)
+	z[1] = fpsub(tres, t11)
 	return
 }
 
 func fp2sqr(x fp2elt) (z fp2elt) {
 	fp2S += 1
-	t00 := fpsqr(x[0])
-	t11 := fpsqr(x[1])
+	//
+	xmin := fpsub(x[0], x[1])
+	xsum := fpadd(x[0], x[1])
 	t01 := fpmul(x[0], x[1])
-
-	z[0] = fpsub(t00, t11)
 	z[1] = fpadd(t01, t01)
+	z[0] = fpmul(xsum, xmin)
 	return
 }
 
