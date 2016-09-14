@@ -1,0 +1,38 @@
+===== Time for 10000 field operations (curve25519) =====
+      -        min          max         mean        stdev
+  add -      30.00       406.00        45.95        46.23
+  inv -    9795.00   2717757.00     20605.57     55664.72
+  mul -     101.00      1089.00       158.29       159.41
+  sqr -      64.00       759.00        88.91        90.44
+
+
+===== Time for 10000 field operations (curve4q - v0) =====  <--- baseline
+      -        min          max         mean        stdev
+  add -      40.00     34093.00        99.49       737.02
+  inv -   11071.00   5864851.00     14470.60     66319.39
+  mul -     291.00     19265.00       394.81       463.29
+  sqr -     181.00     11836.00       255.57       335.30
+
+
+===== Time for 10000 field operations (curve4q - v1) =====  <--- constant time wadd
+      -        min          max         mean        stdev
+  add -      45.00     14403.00        66.49       195.69
+  inv -   11684.00   2732080.00     14715.03     40904.38
+  mul -     351.00     21398.00       451.12       654.04
+  sqr -     218.00     12041.00       250.13       328.40
+
+
+===== Time for 10000 field operations (curve4q - v2) =====  <--- constant time fpadd
+      -        min          max         mean        stdev
+  add -      23.00     23675.00        36.72       260.27
+  inv -    9287.00   1926744.00     11629.89     28340.53
+  mul -     276.00     53781.00       368.49       788.59
+  sqr -     162.00     36995.00       264.75       802.27
+
+
+===== Time for 10000 field operations (curve4q - vX) =====  <--- inline fpmul
+      -        min          max         mean        stdev
+  add -      24.00      8518.00        33.43        91.42
+  inv -    8659.00   3804347.00     11340.24     44573.17
+  mul -     140.00      8309.00       163.50       201.79
+  sqr -      99.00      7999.00       128.65       151.45
