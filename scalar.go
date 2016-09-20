@@ -4,7 +4,59 @@ type scalar [4]uint64
 
 var (
 	N = scalar{0x2fb2540ec7768ce7, 0xdfbd004dfe0f7999, 0xf05397829cbc14e5, 0x0029cbc14e5e0a72}
+
+	_m  uint64 = 0xffffffffffffffff
+	_W2 uint64 = 32                 // Half word size in bits
+	_M2 uint64 = 0x00000000ffffffff // Half word mask
 )
+
+func wselect(c, x1, x0 uint64) uint64 {
+	return x0 ^ ((c * _m) & (x1 ^ x0))
+}
+
+// XXX: NOT CONSTANT TIME
+// Adapted from "math/big" internals
+// https://golang.org/src/math/big/arith.go#L34
+// z1<<_W + z0 = x+y+c, with c == 0 or 1
+func wadd(x, y, c uint64) (z1, z0 uint64) {
+	yc := y + c
+	z0 = x + yc
+	if z0 < x || yc < y {
+		z1 = 1
+	}
+	return
+}
+
+// XXX: NOT CONSTANT TIME
+// Adapted from "math/big" internals
+// https://golang.org/src/math/big/arith.go#L44
+// z1<<_W + z0 = x-y-c, with c == 0 or 1
+func wsub(x, y, c uint64) (z1, z0 uint64) {
+	yc := y + c
+	z0 = x - yc
+	if z0 > x || yc < y {
+		z1 = 1
+	}
+	return
+}
+
+// Adapted from "math/big" internals
+// https://golang.org/src/math/big/arith.go#L54
+// z1<<_W + z0 = x*y
+func wmul(x, y uint64) (z1, z0 uint64) {
+	x0 := x & _M2
+	x1 := x >> _W2
+	y0 := y & _M2
+	y1 := y >> _W2
+	w0 := x0 * y0
+	t := x1*y0 + w0>>_W2
+	w1 := t & _M2
+	w2 := t >> _W2
+	w1 += x0 * y1
+	z1 = x1*y1 + w2 + w1>>_W2
+	z0 = x * y
+	return
+}
 
 func abs(x int) int {
 	x64 := uint64(x)

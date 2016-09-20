@@ -49,7 +49,7 @@ func TestEncodeDecode(t *testing.T) {
 	}
 
 	dec := decode(GEnc)
-	if dec.X != Gx || dec.Y != Gy {
+	if !Gx.eq(dec.X) || !Gy.eq(dec.Y) {
 		t.Fatalf("Decode test failed")
 	}
 }
@@ -60,7 +60,7 @@ func TestReps(t *testing.T) {
 	y := fp2elt{fpint(2), fpint(0)}
 	y2 := fp2elt{fpint(4), fpint(0)}
 	xy := fp2elt{fpint(2), fpint(1)}
-	yx := fp2elt{fpint(2), fpelt{p0 - 1, p1}}
+	yx := fp2elt{fpint(2), spread(fpelt{p0 - 1, p1})}
 	z := fp2elt{fpint(3), fpint(4)}
 	z2 := fp2elt{fpint(6), fpint(8)}
 	ta := fp2elt{fpint(5), fpint(0)}
@@ -75,20 +75,25 @@ func TestReps(t *testing.T) {
 	r4pt := r4{x, y, z}
 	r1pt2 := r1{x2, y2, z2, t2, fp2One}
 
-	if _R1toR2(r1pt) != r2pt {
+	if !r2pt.eq(_R1toR2(r1pt)) {
 		t.Fatalf("failed R1toR2")
 	}
 
-	if _R1toR3(r1pt) != r3pt {
+	if !r3pt.eq(_R1toR3(r1pt)) {
 		t.Fatalf("failed R1toR3")
 	}
 
-	if _R1toR4(r1pt) != r4pt {
+	if !r4pt.eq(_R1toR4(r1pt)) {
 		t.Fatalf("failed R1toR4 %v", _R1toR4(r1pt))
 	}
 
-	if _R2toR1(r2pt) != r1pt2 {
-		t.Fatalf("failed R2toR4")
+	if r1t := _R2toR1(r2pt); !r1pt2.eq(r1t) {
+		t.Logf("%v =?= %v", r1t.X, r1pt2.X)
+		t.Logf("%v =?= %v", r1t.Y, r1pt2.Y)
+		t.Logf("%v =?= %v", r1t.Z, r1pt2.Z)
+		t.Logf("%v =?= %v", r1t.Ta, r1pt2.Ta)
+		t.Logf("%v =?= %v", r1t.Tb, r1pt2.Tb)
+		t.Fatalf("failed R2toR1")
 	}
 }
 
@@ -100,15 +105,17 @@ func TestCore(t *testing.T) {
 	}
 	doubleP := affine{
 		fp2elt{
-			fpelt{0xC9099C54855859D6, 0x2C3FD8822C82270F},
-			fpelt{0xA7B3F6E2043E8E68, 0x4DA5B9E83AA7A1B2},
+			spread(fpelt{0xC9099C54855859D6, 0x2C3FD8822C82270F}),
+			spread(fpelt{0xA7B3F6E2043E8E68, 0x4DA5B9E83AA7A1B2}),
 		},
 		fp2elt{
-			fpelt{0x3EE089F0EB49AA14, 0x2001EB3A57688396},
-			fpelt{0x1FEE5617A7E954CD, 0x0FFDB0D761421F50},
+			spread(fpelt{0x3EE089F0EB49AA14, 0x2001EB3A57688396}),
+			spread(fpelt{0x1FEE5617A7E954CD, 0x0FFDB0D761421F50}),
 		},
 	}
-	if _R1toAffine(A) != doubleP {
+	if A2 := _R1toAffine(A); !doubleP.eq(A2) {
+		t.Logf("%v =?= %v", doubleP.X, A2.X)
+		t.Logf("%v =?= %v", doubleP.Y, A2.Y)
 		t.Fatalf("failed DBL test")
 	}
 
@@ -142,12 +149,12 @@ func TestCore(t *testing.T) {
 	}
 	A1000 := affine{
 		fp2elt{
-			fpelt{0x6480B1EF0A151DB0, 0x3E243958590C4D90},
-			fpelt{0xAA270F644A65D473, 0x5327AF7D84238CD0},
+			spread(fpelt{0x6480B1EF0A151DB0, 0x3E243958590C4D90}),
+			spread(fpelt{0xAA270F644A65D473, 0x5327AF7D84238CD0}),
 		},
 		fp2elt{
-			fpelt{0x5E06003D73C43EB1, 0x3EF69A49CB7E0237},
-			fpelt{0x4E752648AC2EF0AB, 0x293EB1E26DD23B4E},
+			spread(fpelt{0x5E06003D73C43EB1, 0x3EF69A49CB7E0237}),
+			spread(fpelt{0x4E752648AC2EF0AB, 0x293EB1E26DD23B4E}),
 		},
 	}
 	if _R1toAffine(A) != A1000 {
@@ -173,12 +180,12 @@ func testMul(mul mulfn, table []r2) bool {
 
 	mulP := affine{
 		fp2elt{
-			fpelt{0xDFD2B477BD494BEF, 0x257C122BBFC94A1B},
-			fpelt{0x769593547237C459, 0x469BF80CB5B11F01},
+			spread(fpelt{0xDFD2B477BD494BEF, 0x257C122BBFC94A1B}),
+			spread(fpelt{0x769593547237C459, 0x469BF80CB5B11F01}),
 		},
 		fp2elt{
-			fpelt{0x281C5067996F3344, 0x0901B3817C0E936C},
-			fpelt{0x4FE8C429915F1245, 0x570B948EACACE210},
+			spread(fpelt{0x281C5067996F3344, 0x0901B3817C0E936C}),
+			spread(fpelt{0x4FE8C429915F1245, 0x570B948EACACE210}),
 		},
 	}
 
@@ -227,12 +234,12 @@ func TestEndo(t *testing.T) {
 	}
 	phiP := affine{
 		fp2elt{
-			fpelt{0xD5B5A3061287DB16, 0x5550AAB9E7A620EE},
-			fpelt{0xEC321E6CF33610FC, 0x3E61EBB9A1CB0210},
+			spread(fpelt{0xD5B5A3061287DB16, 0x5550AAB9E7A620EE}),
+			spread(fpelt{0xEC321E6CF33610FC, 0x3E61EBB9A1CB0210}),
 		},
 		fp2elt{
-			fpelt{0x7E2851D5A8E83FB9, 0x5474BF8EC55603AE},
-			fpelt{0xA5077613491788D5, 0x5476093DBF8BF6BF},
+			spread(fpelt{0x7E2851D5A8E83FB9, 0x5474BF8EC55603AE}),
+			spread(fpelt{0xA5077613491788D5, 0x5476093DBF8BF6BF}),
 		},
 	}
 	if _R1toAffine(P) != phiP {
@@ -245,12 +252,12 @@ func TestEndo(t *testing.T) {
 	}
 	psiP := affine{
 		fp2elt{
-			fpelt{0xD8F3C8C24A2BC7E2, 0x75AF54EDB41A2B93},
-			fpelt{0x4DE2466701F009A9, 0x065249F9EDE0C798},
+			spread(fpelt{0xD8F3C8C24A2BC7E2, 0x75AF54EDB41A2B93}),
+			spread(fpelt{0x4DE2466701F009A9, 0x065249F9EDE0C798}),
 		},
 		fp2elt{
-			fpelt{0x1C6E119ADD608104, 0x06DBB85BFFB7C21E},
-			fpelt{0xFD234D6C4CFA3EC1, 0x060A30903424BF13},
+			spread(fpelt{0x1C6E119ADD608104, 0x06DBB85BFFB7C21E}),
+			spread(fpelt{0xFD234D6C4CFA3EC1, 0x060A30903424BF13}),
 		},
 	}
 	if _R1toAffine(P) != psiP {
@@ -259,23 +266,21 @@ func TestEndo(t *testing.T) {
 }
 
 func TestRecode(t *testing.T) {
-	// TODO TEST_LOOPS := 1000
-
 	// Test decomposition
 	testCases := []struct {
 		in  scalar
 		dec scalar
-		m   []uint64
-		d   []uint64
+		m   []int32
+		d   []int32
 	}{
 		{
 			in:  scalar{0xfed8c8822ad9f1a7, 0x47b3e28c55984d43, 0x052d112f54981117, 0x92990788d66bf558},
 			dec: scalar{0xa8ea3f673f711e51, 0xa08d1eae0b9e071d, 0x55c8df690050276f, 0x6396739dda88830f},
-			m: []uint64{0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1,
+			m: []int32{0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1,
 				0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1,
 				1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
 				1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1},
-			d: []uint64{7, 1, 0, 0, 6, 5, 0, 2, 5, 5, 1, 2, 0, 2, 2, 6,
+			d: []int32{7, 1, 0, 0, 6, 5, 0, 2, 5, 5, 1, 2, 0, 2, 2, 6,
 				0, 1, 0, 4, 2, 1, 2, 7, 1, 5, 0, 5, 4, 0, 4, 0,
 				2, 5, 5, 2, 3, 7, 2, 7, 6, 7, 3, 3, 7, 4, 2, 4,
 				7, 4, 1, 7, 3, 4, 2, 7, 1, 3, 5, 2, 0, 7, 1, 7, 7},
@@ -283,11 +288,11 @@ func TestRecode(t *testing.T) {
 		{
 			in:  scalar{0xe5230df341623348, 0x4b0c61edc8d1305f, 0xa214b88481393502, 0x48e5ca2a675ab49c},
 			dec: scalar{0xa53ec4631945b875, 0x521c0ba1261c1934, 0x5c50ce912909185c, 0x93b3c70960b44bad},
-			m: []uint64{0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1,
+			m: []int32{0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1,
 				0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1,
 				1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0,
 				1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1},
-			d: []uint64{4, 4, 7, 1, 5, 7, 2, 6, 3, 3, 7, 7, 3, 0, 4, 0,
+			d: []int32{4, 4, 7, 1, 5, 7, 2, 6, 3, 3, 7, 7, 3, 0, 4, 0,
 				2, 2, 5, 6, 2, 3, 4, 0, 6, 7, 6, 3, 0, 7, 3, 7,
 				7, 0, 0, 4, 6, 1, 0, 3, 6, 0, 1, 4, 7, 7, 6, 6,
 				2, 0, 5, 1, 7, 4, 6, 2, 0, 1, 6, 4, 1, 6, 5, 6, 6},
@@ -295,11 +300,11 @@ func TestRecode(t *testing.T) {
 		{
 			in:  scalar{0xe58a15c4b0f1c5e9, 0x05a1e8f7f6394d9b, 0xe4d9f3d5a5edfed3, 0xae20e251c36cfa5b},
 			dec: scalar{0xa621ada9b3499c9f, 0x7cd17e0095e7aae6, 0x6e8d23b5bd10bb43, 0x7f18c69f3025234c},
-			m: []uint64{1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1,
+			m: []int32{1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1,
 				0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1,
 				0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1,
 				0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1},
-			d: []uint64{2, 3, 5, 4, 0, 1, 6, 0, 7, 0, 7, 3, 2, 5, 7, 3,
+			d: []int32{2, 3, 5, 4, 0, 1, 6, 0, 7, 0, 7, 3, 2, 5, 7, 3,
 				5, 4, 0, 5, 7, 2, 4, 4, 2, 1, 2, 1, 5, 4, 6, 3,
 				6, 2, 0, 2, 0, 4, 6, 6, 2, 5, 7, 1, 0, 2, 6, 5,
 				3, 3, 1, 5, 2, 5, 4, 6, 3, 2, 3, 0, 2, 2, 0, 7, 7},
@@ -307,11 +312,11 @@ func TestRecode(t *testing.T) {
 		{
 			in:  scalar{0x34ff616d9806e10c, 0xb7e95036fd191ea1, 0x2cc00f1e3ac38f81, 0xb2c950abc87a5544},
 			dec: scalar{0x9b30a872ebea83af, 0x8f6c73350447c9c3, 0x72fdc76e3456d087, 0x6ba39ba159b0c13d},
-			m: []uint64{1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0,
+			m: []int32{1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0,
 				1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0,
 				1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0,
 				0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1},
-			d: []uint64{7, 3, 6, 4, 0, 0, 5, 3, 5, 0, 0, 1, 3, 3, 4, 4,
+			d: []int32{7, 3, 6, 4, 0, 0, 5, 3, 5, 0, 0, 1, 3, 3, 4, 4,
 				6, 2, 0, 3, 5, 6, 3, 4, 4, 0, 3, 4, 2, 6, 4, 0,
 				5, 2, 1, 1, 3, 7, 2, 6, 1, 0, 5, 6, 3, 5, 6, 7,
 				1, 3, 4, 4, 1, 5, 4, 1, 3, 3, 6, 4, 3, 5, 1, 7, 7},
@@ -319,18 +324,18 @@ func TestRecode(t *testing.T) {
 		{
 			in:  scalar{0xdd4f4ce2b5f6b2de, 0x61f21fcebd67889f, 0x62340e9797788e00, 0x8e2958a1475ed707},
 			dec: scalar{0xbe8f3583a0934333, 0xab45bf6d1bf80b37, 0x4a19fc5cffe97809, 0x5ea3baf1a1206442},
-			m: []uint64{1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1,
+			m: []int32{1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1,
 				1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1,
 				1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1,
 				1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1},
-			d: []uint64{3, 5, 4, 7, 1, 1, 5, 5, 1, 1, 5, 6, 5, 1, 0, 6,
+			d: []int32{3, 5, 4, 7, 1, 1, 5, 5, 1, 1, 5, 6, 5, 1, 0, 6,
 				2, 0, 0, 3, 1, 6, 4, 0, 4, 4, 5, 4, 4, 5, 5, 4,
 				7, 0, 3, 0, 5, 2, 0, 3, 5, 0, 6, 0, 0, 0, 5, 0,
 				0, 3, 5, 2, 0, 6, 7, 4, 5, 7, 4, 7, 4, 1, 7, 1, 1},
 		},
 	}
 
-	uintSliceEq := func(a, b []uint64) bool {
+	intSliceEq := func(a, b []int32) bool {
 		if len(a) != len(b) {
 			return false
 		}
@@ -350,10 +355,10 @@ func TestRecode(t *testing.T) {
 		}
 
 		m, d := recode(dec)
-		if !uintSliceEq(m, test.m) {
+		if !intSliceEq(m, test.m) {
 			t.Fatalf("failed recode test (sign masks) %v %v", m, test.m)
 		}
-		if !uintSliceEq(d, test.d) {
+		if !intSliceEq(d, test.d) {
 			t.Fatalf("failed recode test (digits) %v %v", d, test.d)
 		}
 	}

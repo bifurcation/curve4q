@@ -14,13 +14,14 @@ func randfp() (x fpelt) {
 	return
 }
 
-func fp2big(x fpelt) *big.Int {
-	x1b := big.NewInt(0).SetUint64(x[1])
+func fp2big(x fpselt) *big.Int {
+	xu := unspread(x)
+	x1b := big.NewInt(0).SetUint64(xu[1])
 	x1b = x1b.Lsh(x1b, 64)
-	return x1b.Add(x1b, big.NewInt(0).SetUint64(x[0]))
+	return x1b.Add(x1b, big.NewInt(0).SetUint64(xu[0]))
 }
 
-func fpeq(x fpelt, y *big.Int) bool {
+func fpeqbig(x fpselt, y *big.Int) bool {
 	xb := fp2big(x)
 	return xb.Cmp(y) == 0
 }
@@ -29,28 +30,37 @@ func (x fpelt) String() string {
 	return fmt.Sprintf("%016x%016x", x[1], x[0])
 }
 
+func (x fpselt) String() string {
+	return unspread(x).String()
+}
+
 const (
 	TEST_LOOPS = 1000
 )
 
 var (
-	pb        = fp2big(p)
-	corpus    = make([]fpelt, TEST_LOOPS)
+	pb        *big.Int
+	corpus    = make([]fpselt, TEST_LOOPS)
 	bigCorpus = make([]*big.Int, TEST_LOOPS)
 	corpus2   = make([]fp2elt, TEST_LOOPS)
 )
 
 func TestMain(m *testing.M) {
+	pb = big.NewInt(0).SetUint64(p1)
+	pb = pb.Lsh(pb, 64)
+	pb = pb.Add(pb, big.NewInt(0).SetUint64(p0))
+
 	for i := range corpus {
-		corpus[i] = randfp()
-		fpreduce(&corpus[i])
+		x := randfp()
+		fpreduce(&x)
+		corpus[i] = spread(x)
 		bigCorpus[i] = fp2big(corpus[i])
 
-		x := randfp()
+		x = randfp()
 		y := randfp()
 		fpreduce(&x)
 		fpreduce(&y)
-		corpus2[i] = fp2elt{x, y}
+		corpus2[i] = fp2elt{spread(x), spread(y)}
 	}
 
 	m.Run()
@@ -106,8 +116,8 @@ func TestPerf(t *testing.T) {
 }
 
 func TestFPSelect(t *testing.T) {
-	x := fpelt{1, 2}
-	y := fpelt{3, 4}
+	x := spread(fpelt{1, 2})
+	y := spread(fpelt{3, 4})
 
 	z := fpselect(1, x, y)
 	if z != x {
@@ -123,12 +133,12 @@ func TestFPSelect(t *testing.T) {
 func TestFPReduce(t *testing.T) {
 	for _ = range corpus {
 		x := randfp()
-		before := fp2big(x)
+		before := fp2big(spread(x))
 
 		fpreduce(&x)
 		after := before.Mod(before, pb)
 
-		if !fpeq(x, after) {
+		if !fpeqbig(spread(x), after) {
 			t.Fatalf("fpreduce failed %s != %s", after.Text(16), x)
 		}
 	}
@@ -145,18 +155,16 @@ func TestFPAdd(t *testing.T) {
 		zb := big.NewInt(0).Add(xb, yb)
 		zb.Mod(zb, pb)
 
-		if !fpeq(z, zb) {
+		if !fpeqbig(z, zb) {
 			t.Fatalf("fpadd failed [%d] %s != %s", i, zb.Text(16), z)
 		}
 	}
 }
 
 func TestFPNeg(t *testing.T) {
-	zero := fpelt{0, 0}
-	if fpneg(zero) != zero {
-		t.Fatalf("fpneg failed to handle zero %v", fpneg(zero))
+	if fpneg(fpZero) != fpZero {
+		t.Fatalf("fpneg failed to handle zero %v", fpneg(fpZero))
 	}
-	return
 
 	for i := range corpus {
 		x := corpus[i]
@@ -166,7 +174,7 @@ func TestFPNeg(t *testing.T) {
 		zb := big.NewInt(0).Sub(pb, xb)
 		zb.Mod(zb, pb)
 
-		if !fpeq(z, zb) {
+		if !fpeqbig(z, zb) {
 			t.Fatalf("fpneg failed [%d] %s != %s", i, zb.Text(16), z)
 		}
 	}
@@ -183,7 +191,7 @@ func TestFPSub(t *testing.T) {
 		zb := big.NewInt(0).Sub(xb, yb)
 		zb.Mod(zb, pb)
 
-		if !fpeq(z, zb) {
+		if !fpeqbig(z, zb) {
 			t.Fatalf("fpadd failed [%d] %s != %s", i, zb.Text(16), z)
 		}
 	}
@@ -200,7 +208,7 @@ func TestFPMul(t *testing.T) {
 		zb := big.NewInt(0).Mul(xb, yb)
 		zb.Mod(zb, pb)
 
-		if !fpeq(z, zb) {
+		if !fpeqbig(z, zb) {
 			t.Fatalf("fpmul failed %s != %s", zb.Text(16), z)
 		}
 	}
@@ -215,7 +223,7 @@ func TestFPSqr(t *testing.T) {
 		zb := big.NewInt(0).Mul(xb, xb)
 		zb.Mod(zb, pb)
 
-		if !fpeq(z, zb) {
+		if !fpeqbig(z, zb) {
 			t.Fatalf("fpneg failed [%d] %s != %s", i, zb.Text(16), z)
 		}
 	}
@@ -225,7 +233,7 @@ func TestFPInv(t *testing.T) {
 	for i := range corpus {
 		x := corpus[i]
 		inv := fpinv(x)
-		z := fpmul(x, inv)
+		z := unspread(fpmul(x, inv))
 		if z[0] != 1 || z[1] != 0 {
 			t.Fatalf("fpinv did not produce inverse [%d] %s != %s", i, inv, z)
 		}
@@ -245,7 +253,7 @@ func TestFPInvSqrt(t *testing.T) {
 	for i := range corpus {
 		x := corpus[i]
 		inv := fpinvsqrt(x)
-		z := fpmul(fpmul(x, inv), inv)
+		z := unspread(fpmul(fpmul(x, inv), inv))
 		zIsOne := z[0] != 1 || z[1] != 0
 		zIsMinusOne := z[0] != p0-1 || z[1] != p1
 		if !zIsOne && !zIsMinusOne {

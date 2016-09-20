@@ -9,8 +9,8 @@ import (
 var (
 	// Curve parameter as a field element tuple
 	d = fp2elt{
-		fpelt{0x0000000000000142, 0x00000000000000e4},
-		fpelt{0xb3821488f1fc0c8d, 0x5e472f846657e0fc},
+		spread(fpelt{0x0000000000000142, 0x00000000000000e4}),
+		spread(fpelt{0xb3821488f1fc0c8d, 0x5e472f846657e0fc}),
 	}
 
 	// Inverse of the curve parameter
@@ -22,12 +22,12 @@ var (
 
 	// Affine coordinates for the base point
 	Gx = fp2elt{
-		fpelt{0x286592AD7B3833AA, 0x1A3472237C2FB305},
-		fpelt{0x96869FB360AC77F6, 0x1E1F553F2878AA9C},
+		spread(fpelt{0x286592AD7B3833AA, 0x1A3472237C2FB305}),
+		spread(fpelt{0x96869FB360AC77F6, 0x1E1F553F2878AA9C}),
 	}
 	Gy = fp2elt{
-		fpelt{0xB924A2462BCBB287, 0x0E3FEE9BA120785A},
-		fpelt{0x49A7C344844C8B5C, 0x6E1C4AF8630E0242},
+		spread(fpelt{0xB924A2462BCBB287, 0x0E3FEE9BA120785A}),
+		spread(fpelt{0x49A7C344844C8B5C, 0x6E1C4AF8630E0242}),
 	}
 )
 
@@ -37,26 +37,36 @@ func pointOnCurve(X, Y fp2elt) bool {
 	Y2 := fp2sqr(Y)
 	LHS := fp2sub(Y2, X2)
 	RHS := fp2add(fp2One, fp2mul(fp2mul(d, X2), Y2))
-	return LHS == RHS
+	return unspread(LHS[0]) == unspread(RHS[0]) &&
+		unspread(LHS[1]) == unspread(RHS[1])
 }
 
 /********** Point encoding / decoding **********/
 
+// Constant time is-zero function
+func is_zero(x uint64) uint64 {
+	return 0 - ((^x & (x - 1)) >> 63)
+}
+
 // "Sign" bit used in compression / decompression
 // s = (x0 != 0)? (x0 >> 127) : (x1 >> 127)
 func sign(x fp2elt) byte {
-	x0z := wzero(x[0][0] | x[0][1])
-	s0 := x[0][1] >> 63
-	s1 := x[1][1] >> 63
+	x0 := unspread(x[0])
+	x1 := unspread(x[1])
+	x0z := is_zero(x0[0] | x0[1])
+	s0 := x0[1] >> 63
+	s1 := x1[1] >> 63
 	return byte((s1 ^ (x0z & (s0 ^ s1))) & 0xFF)
 }
 
 func encode(P affine) []byte {
+	y0 := unspread(P.Y[0])
+	y1 := unspread(P.Y[1])
 	buf := make([]byte, 32)
-	binary.LittleEndian.PutUint64(buf[0:8], P.Y[0][0])
-	binary.LittleEndian.PutUint64(buf[8:16], P.Y[0][1])
-	binary.LittleEndian.PutUint64(buf[16:24], P.Y[1][0])
-	binary.LittleEndian.PutUint64(buf[24:32], P.Y[1][1])
+	binary.LittleEndian.PutUint64(buf[0:8], y0[0])
+	binary.LittleEndian.PutUint64(buf[8:16], y0[1])
+	binary.LittleEndian.PutUint64(buf[16:24], y1[0])
+	binary.LittleEndian.PutUint64(buf[24:32], y1[1])
 	buf[31] |= sign(P.X)
 	return buf
 }
@@ -77,7 +87,7 @@ func decode(buf []byte) (P affine) {
 	y01 := binary.LittleEndian.Uint64(buf[8:16])
 	y10 := binary.LittleEndian.Uint64(buf[16:24])
 	y11 := binary.LittleEndian.Uint64(buf[24:32])
-	P.Y = fp2elt{fpelt{y00, y01}, fpelt{y10, y11}}
+	P.Y = fp2elt{spread(fpelt{y00, y01}), spread(fpelt{y10, y11})}
 
 	y2 := fp2sqr(P.Y)
 	y21 := fp2sub(y2, fp2One)
@@ -104,6 +114,38 @@ type r1 struct{ X, Y, Z, Ta, Tb fp2elt }
 type r2 struct{ N, D, E, F fp2elt }
 type r3 struct{ N, D, Z, T fp2elt }
 type r4 struct{ X, Y, Z fp2elt }
+
+func (pt affine) eq(other affine) bool {
+	return pt.X.eq(other.X) && pt.Y.eq(other.Y)
+}
+
+func (pt r1) eq(other r1) bool {
+	return pt.X.eq(other.X) &&
+		pt.Y.eq(other.Y) &&
+		pt.Z.eq(other.Z) &&
+		pt.Ta.eq(other.Ta) &&
+		pt.Tb.eq(other.Tb)
+}
+
+func (pt r2) eq(other r2) bool {
+	return pt.N.eq(other.N) &&
+		pt.D.eq(other.D) &&
+		pt.E.eq(other.E) &&
+		pt.F.eq(other.F)
+}
+
+func (pt r3) eq(other r3) bool {
+	return pt.N.eq(other.N) &&
+		pt.D.eq(other.D) &&
+		pt.Z.eq(other.Z) &&
+		pt.T.eq(other.T)
+}
+
+func (pt r4) eq(other r4) bool {
+	return pt.X.eq(other.X) &&
+		pt.Y.eq(other.Y) &&
+		pt.Z.eq(other.Z)
+}
 
 func _AffineToR1(P affine) (Q r1) {
 	Q = r1{P.X, P.Y, fp2One, P.X, P.Y}
@@ -165,7 +207,7 @@ func _R2neg(P r2) (Q r2) {
 	return
 }
 
-func _R2select(c uint64, P1, P0 r2) (Q r2) {
+func _R2select(c int32, P1, P0 r2) (Q r2) {
 	Q.N = fp2select(c, P1.N, P0.N)
 	Q.D = fp2select(c, P1.D, P0.D)
 	Q.E = fp2select(c, P1.E, P0.E)
@@ -246,12 +288,12 @@ func mulWindowed(m scalar, P r1, table []r2) (Q r1) {
 	d[62] = int(reduced[0])
 
 	ind := make([]int, len(d))
-	sgn := make([]uint64, len(d))
+	sgn := make([]int32, len(d))
 	for i, di := range d {
 		a := abs(di)
 		ind[i] = (a - 1) / 2
 		s := di / a
-		sgn[i] = uint64((s + 1) / 2)
+		sgn[i] = int32((s + 1) / 2)
 	}
 
 	// Compute the product
@@ -266,22 +308,22 @@ func mulWindowed(m scalar, P r1, table []r2) (Q r1) {
 /********** Endomorphisms **********/
 
 var (
-	ctau     = fp2elt{fpelt{0x74dcd57cebce74c3, 0x1964de2c3afad20c}, fpelt{0x0000000000000012, 0x000000000000000c}}
-	ctaudual = fp2elt{fpelt{0x9ecaa6d9decdf034, 0x4aa740eb23058652}, fpelt{0x0000000000000011, 0x7ffffffffffffff4}}
-	cphi0    = fp2elt{fpelt{0xfffffffffffffff7, 0x0000000000000005}, fpelt{0x4f65536cef66f81a, 0x2553a0759182c329}}
-	cphi1    = fp2elt{fpelt{0x0000000000000007, 0x0000000000000005}, fpelt{0x334d90e9e28296f9, 0x62c8caa0c50c62cf}}
-	cphi2    = fp2elt{fpelt{0x0000000000000015, 0x000000000000000f}, fpelt{0x2c2cb7154f1df391, 0x78df262b6c9b5c98}}
-	cphi3    = fp2elt{fpelt{0x0000000000000003, 0x0000000000000002}, fpelt{0x92440457a7962ea4, 0x5084c6491d76342a}}
-	cphi4    = fp2elt{fpelt{0x0000000000000003, 0x0000000000000003}, fpelt{0xa1098c923aec6855, 0x12440457a7962ea4}}
-	cphi5    = fp2elt{fpelt{0x000000000000000f, 0x000000000000000a}, fpelt{0x669b21d3c5052df3, 0x459195418a18c59e}}
-	cphi6    = fp2elt{fpelt{0x0000000000000018, 0x0000000000000012}, fpelt{0xcd3643a78a0a5be7, 0x0b232a8314318b3c}}
-	cphi7    = fp2elt{fpelt{0x0000000000000023, 0x0000000000000018}, fpelt{0x66c183035f48781a, 0x3963bc1c99e2ea1a}}
-	cphi8    = fp2elt{fpelt{0x00000000000000f0, 0x00000000000000aa}, fpelt{0x44e251582b5d0ef0, 0x1f529f860316cbe5}}
-	cphi9    = fp2elt{fpelt{0x0000000000000bef, 0x0000000000000870}, fpelt{0x014d3e48976e2505, 0x0fd52e9cfe00375b}}
-	cpsi1    = fp2elt{fpelt{0xedf07f4767e346ef, 0x2af99e9a83d54a02}, fpelt{0x000000000000013a, 0x00000000000000de}}
-	cpsi2    = fp2elt{fpelt{0x0000000000000143, 0x00000000000000e4}, fpelt{0x4c7deb770e03f372, 0x21b8d07b99a81f03}}
-	cpsi3    = fp2elt{fpelt{0x0000000000000009, 0x0000000000000006}, fpelt{0x3a6e6abe75e73a61, 0x4cb26f161d7d6906}}
-	cpsi4    = fp2elt{fpelt{0xfffffffffffffff6, 0x7ffffffffffffff9}, fpelt{0xc59195418a18c59e, 0x334d90e9e28296f9}}
+	ctau     = fp2elt{spread(fpelt{0x74dcd57cebce74c3, 0x1964de2c3afad20c}), spread(fpelt{0x0000000000000012, 0x000000000000000c})}
+	ctaudual = fp2elt{spread(fpelt{0x9ecaa6d9decdf034, 0x4aa740eb23058652}), spread(fpelt{0x0000000000000011, 0x7ffffffffffffff4})}
+	cphi0    = fp2elt{spread(fpelt{0xfffffffffffffff7, 0x0000000000000005}), spread(fpelt{0x4f65536cef66f81a, 0x2553a0759182c329})}
+	cphi1    = fp2elt{spread(fpelt{0x0000000000000007, 0x0000000000000005}), spread(fpelt{0x334d90e9e28296f9, 0x62c8caa0c50c62cf})}
+	cphi2    = fp2elt{spread(fpelt{0x0000000000000015, 0x000000000000000f}), spread(fpelt{0x2c2cb7154f1df391, 0x78df262b6c9b5c98})}
+	cphi3    = fp2elt{spread(fpelt{0x0000000000000003, 0x0000000000000002}), spread(fpelt{0x92440457a7962ea4, 0x5084c6491d76342a})}
+	cphi4    = fp2elt{spread(fpelt{0x0000000000000003, 0x0000000000000003}), spread(fpelt{0xa1098c923aec6855, 0x12440457a7962ea4})}
+	cphi5    = fp2elt{spread(fpelt{0x000000000000000f, 0x000000000000000a}), spread(fpelt{0x669b21d3c5052df3, 0x459195418a18c59e})}
+	cphi6    = fp2elt{spread(fpelt{0x0000000000000018, 0x0000000000000012}), spread(fpelt{0xcd3643a78a0a5be7, 0x0b232a8314318b3c})}
+	cphi7    = fp2elt{spread(fpelt{0x0000000000000023, 0x0000000000000018}), spread(fpelt{0x66c183035f48781a, 0x3963bc1c99e2ea1a})}
+	cphi8    = fp2elt{spread(fpelt{0x00000000000000f0, 0x00000000000000aa}), spread(fpelt{0x44e251582b5d0ef0, 0x1f529f860316cbe5})}
+	cphi9    = fp2elt{spread(fpelt{0x0000000000000bef, 0x0000000000000870}), spread(fpelt{0x014d3e48976e2505, 0x0fd52e9cfe00375b})}
+	cpsi1    = fp2elt{spread(fpelt{0xedf07f4767e346ef, 0x2af99e9a83d54a02}), spread(fpelt{0x000000000000013a, 0x00000000000000de})}
+	cpsi2    = fp2elt{spread(fpelt{0x0000000000000143, 0x00000000000000e4}), spread(fpelt{0x4c7deb770e03f372, 0x21b8d07b99a81f03})}
+	cpsi3    = fp2elt{spread(fpelt{0x0000000000000009, 0x0000000000000006}), spread(fpelt{0x3a6e6abe75e73a61, 0x4cb26f161d7d6906})}
+	cpsi4    = fp2elt{spread(fpelt{0xfffffffffffffff6, 0x7ffffffffffffff9}), spread(fpelt{0xc59195418a18c59e, 0x334d90e9e28296f9})}
 )
 
 func tau(P r4) (Q r4) {
@@ -383,27 +425,27 @@ func decompose(m scalar) (a scalar) {
 	return
 }
 
-func recode(v scalar) (m []uint64, d []uint64) {
+func recode(v scalar) (m []int32, d []int32) {
 	bit := func(x uint64, n uint) uint64 {
 		return (x >> n) & 1
 	}
 
-	d = make([]uint64, 65)
-	m = make([]uint64, 65)
+	d = make([]int32, 65)
+	m = make([]int32, 65)
 	for i := uint(0); i < 64; i += 1 {
 		b1 := bit(v[0], i+1)
 		d[i] = 0
-		m[i] = b1
+		m[i] = int32(b1)
 
 		for _, j := range []uint{1, 2, 3} {
 			bj := bit(v[j], 0)
-			d[i] += bj << uint(j-1)
+			d[i] += int32(bj << uint(j-1))
 			c := (b1 | bj) ^ b1
 			v[j] = (v[j] >> 1) + c
 		}
 	}
 
-	d[64] = v[1] + 2*v[2] + 4*v[3]
+	d[64] = int32(v[1] + 2*v[2] + 4*v[3])
 	m[64] = 1
 	return
 }
